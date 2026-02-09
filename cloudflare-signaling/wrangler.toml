@@ -1,0 +1,11 @@
+name = "easydrop-signaling"
+main = "src/worker.ts"
+compatibility_date = "2025-12-01"
+
+[[durable_objects.bindings]]
+name = "SIGNAL_ROOM"
+class_name = "SignalRoom"
+
+[[migrations]]
+tag = "v1"
+new_classes = ["SignalRoom"]

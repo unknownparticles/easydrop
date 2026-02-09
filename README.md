@@ -56,3 +56,21 @@ GitHub Pages 仅提供静态托管，不会运行 WebSocket 信令服务。
 3. 值示例：`wss://your-signal-server.example.com/ws`
 
 工作流会在构建时注入该地址，页面端使用它做设备发现与 WebRTC 信令交换。
+
+## Cloudflare 信令服务（推荐给 GitHub Pages）
+
+目录：`/Users/alun/Downloads/localdrop-ai/cloudflare-signaling`
+
+这个 Worker 仅做信令转发（`/ws`），不传输文件内容。
+
+部署步骤：
+1. 登录 Cloudflare：
+   `npx wrangler login`
+2. 部署 Worker：
+   `npm run signal:deploy`
+3. 获得地址后，填入仓库 Secret：
+   `VITE_SIGNALING_URL=wss://<your-worker-domain>/ws`
+4. 重新触发 GitHub Pages workflow 发布前端
+
+本地调试 Worker：
+`npm run signal:dev`

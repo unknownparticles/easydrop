@@ -7,6 +7,8 @@
     "dev": "vite",
     "build": "vite build",
     "build:easydrop": "BASE_PATH=/easydrop/ vite build",
+    "signal:dev": "npx wrangler dev --config cloudflare-signaling/wrangler.toml",
+    "signal:deploy": "npx wrangler deploy --config cloudflare-signaling/wrangler.toml",
     "preview": "vite preview",
     "start": "node server.js"
   },

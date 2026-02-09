@@ -11,3 +11,4 @@ dist
 .github/workflows/*.local.yml
 .github/workflows/*.local.yaml
 artifacts/
+.wrangler/
