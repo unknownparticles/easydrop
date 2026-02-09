@@ -1,9 +1,6 @@
-const CACHE_NAME = 'localdrop-shell-v2';
-const SHELL = [
-  '/offline.html',
-  '/manifest.webmanifest',
-  '/icon.png'
-];
+const CACHE_NAME = 'localdrop-shell-v3';
+const scopeUrl = new URL(self.registration.scope);
+const SHELL = ['offline.html', 'manifest.webmanifest', 'icon.png'].map((file) => new URL(file, scopeUrl).pathname);
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -22,7 +19,7 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   if (event.request.mode === 'navigate') {
     event.respondWith(
-      fetch(event.request).catch(() => caches.match('/offline.html'))
+      fetch(event.request).catch(() => caches.match(new URL('offline.html', scopeUrl).pathname))
     );
     return;
   }

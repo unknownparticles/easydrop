@@ -17,7 +17,8 @@ root.render(
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' }).catch((error) => {
+    const swUrl = `${import.meta.env.BASE_URL}sw.js`;
+    navigator.serviceWorker.register(swUrl, { updateViaCache: 'none' }).catch((error) => {
       console.warn('SW registration failed', error);
     });
   });
