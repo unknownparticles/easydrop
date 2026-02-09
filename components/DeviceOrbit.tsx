@@ -23,7 +23,7 @@ export const DeviceOrbit: React.FC<DeviceOrbitProps> = ({
 }) => {
   const positions = useMemo(() => {
     const count = devices.length;
-    const radius = 118;
+    const radius = 142;
     return devices.map((device, index) => {
       const angle = count > 1 ? (2 * Math.PI * index) / count - Math.PI / 2 : -Math.PI / 2;
       return { device, x: Math.cos(angle) * radius, y: Math.sin(angle) * radius };
@@ -31,7 +31,7 @@ export const DeviceOrbit: React.FC<DeviceOrbitProps> = ({
   }, [devices]);
 
   return (
-    <div className="relative rounded-[32px] p-14 h-[380px] sm:h-[440px] bg-white/70 overflow-hidden">
+    <div className="relative rounded-[32px] p-16 h-[400px] sm:h-[460px] bg-white/70 overflow-hidden">
       <div className="absolute inset-0 flex items-center justify-center">
         <div className="group flex flex-col items-center gap-2 text-center">
           <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-full bg-indigo-600 text-white flex items-center justify-center group-hover:scale-[1.02] transition-transform">
@@ -46,11 +46,14 @@ export const DeviceOrbit: React.FC<DeviceOrbitProps> = ({
 
       {positions.map(({ device, x, y }) => {
         const status = pairingStatus[device.id] || 'idle';
+        const placeLabelOutside = y < -24;
         return (
           <button
             key={device.id}
             onClick={() => isOnline && onPair(device)}
-            className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 group flex flex-col items-center gap-2"
+            className={`absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 group flex items-center gap-2 ${
+              placeLabelOutside ? 'flex-col-reverse' : 'flex-col'
+            }`}
             style={{ transform: `translate(-50%, -50%) translate(${x}px, ${y}px)` }}
           >
             <div className={`w-16 h-16 sm:w-20 sm:h-20 rounded-full flex items-center justify-center transition-all ${
