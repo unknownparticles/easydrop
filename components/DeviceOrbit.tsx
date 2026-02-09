@@ -23,7 +23,8 @@ export const DeviceOrbit: React.FC<DeviceOrbitProps> = ({
 }) => {
   const positions = useMemo(() => {
     const count = devices.length;
-    const radius = 142;
+    const minGap = 102;
+    const radius = count > 1 ? Math.max(150, Math.ceil((count * minGap) / (2 * Math.PI))) : 160;
     return devices.map((device, index) => {
       const angle = count > 1 ? (2 * Math.PI * index) / count - Math.PI / 2 : -Math.PI / 2;
       return { device, x: Math.cos(angle) * radius, y: Math.sin(angle) * radius };
@@ -31,7 +32,7 @@ export const DeviceOrbit: React.FC<DeviceOrbitProps> = ({
   }, [devices]);
 
   return (
-    <div className="relative rounded-[32px] p-16 h-[400px] sm:h-[460px] bg-white/70 overflow-hidden">
+    <div className="relative rounded-[32px] p-16 h-[420px] sm:h-[500px] bg-white/70 overflow-hidden">
       <div className="absolute inset-0 flex items-center justify-center">
         <div className="group flex flex-col items-center gap-2 text-center">
           <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-full bg-indigo-600 text-white flex items-center justify-center group-hover:scale-[1.02] transition-transform">

@@ -36,6 +36,7 @@ export const useSignaling = (deviceName: string, handlers: SignalingHandlers) =>
   const deviceIdRef = useRef<string>('');
   const deviceNameRef = useRef(deviceName);
   const handlersRef = useRef(handlers);
+  const pendingSignalsRef = useRef<Array<{ type: string; payload: Record<string, unknown> }>>([]);
 
   useEffect(() => {
     handlersRef.current = handlers;
@@ -99,6 +100,9 @@ export const useSignaling = (deviceName: string, handlers: SignalingHandlers) =>
             }
           }
         }));
+        for (const item of pendingSignalsRef.current.splice(0)) {
+          ws.send(JSON.stringify(item));
+        }
       };
 
       ws.onmessage = (event) => {
@@ -190,7 +194,13 @@ export const useSignaling = (deviceName: string, handlers: SignalingHandlers) =>
   }, [signalingUrl]);
 
   const sendSignal = (type: string, payload: Record<string, unknown>) => {
-    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
+    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
+      pendingSignalsRef.current.push({ type, payload });
+      if (pendingSignalsRef.current.length > 100) {
+        pendingSignalsRef.current.shift();
+      }
+      return;
+    }
     wsRef.current.send(JSON.stringify({ type, payload }));
   };
 
