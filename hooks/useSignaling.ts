@@ -10,6 +10,8 @@ const STORAGE_KEYS = {
 };
 
 const buildDefaultSignalingUrl = () => {
+  const envUrl = import.meta.env.VITE_SIGNALING_URL as string | undefined;
+  if (envUrl && envUrl.trim()) return envUrl.trim();
   if (typeof window === 'undefined') return 'ws://localhost/ws';
   const { protocol, host } = window.location;
   const wsProtocol = protocol === 'https:' ? 'wss' : 'ws';
@@ -31,6 +33,7 @@ export const useSignaling = (deviceName: string, handlers: SignalingHandlers) =>
   const signalingUrl = useMemo(() => buildDefaultSignalingUrl(), []);
   const wsRef = useRef<WebSocket | null>(null);
   const deviceIdRef = useRef<string>('');
+  const deviceNameRef = useRef(deviceName);
   const handlersRef = useRef(handlers);
 
   useEffect(() => {
@@ -47,10 +50,18 @@ export const useSignaling = (deviceName: string, handlers: SignalingHandlers) =>
   }, [deviceName]);
 
   useEffect(() => {
+    deviceNameRef.current = deviceName;
     localStorage.setItem(STORAGE_KEYS.deviceName, deviceName);
-    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify({ type: 'rename', payload: { name: deviceName } }));
-    }
+  }, [deviceName]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+        wsRef.current.send(JSON.stringify({ type: 'rename', payload: { name: deviceNameRef.current } }));
+      }
+    }, 200);
+
+    return () => window.clearTimeout(timer);
   }, [deviceName]);
 
   useEffect(() => {
@@ -81,7 +92,7 @@ export const useSignaling = (deviceName: string, handlers: SignalingHandlers) =>
           payload: {
             device: {
               id: deviceIdRef.current,
-              name: deviceName,
+              name: deviceNameRef.current,
               type: detectDeviceType(),
               clientVersion: '1.0'
             }
@@ -176,7 +187,7 @@ export const useSignaling = (deviceName: string, handlers: SignalingHandlers) =>
   };
 
   const requestShare = (device: Device, payload: Record<string, unknown>) => {
-    sendSignal('share:request', { to: device.id, name: deviceName, deviceType: detectDeviceType(), ...payload });
+    sendSignal('share:request', { to: device.id, name: deviceNameRef.current, deviceType: detectDeviceType(), ...payload });
   };
 
   const acceptShareRequest = (request: ShareRequest) => {

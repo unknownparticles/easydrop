@@ -31,6 +31,8 @@ jobs:
         run: npm ci
 
       - name: Build (Project Subpath)
+        env:
+          VITE_SIGNALING_URL: ${{ secrets.VITE_SIGNALING_URL }}
         run: npm run build:easydrop
 
       - name: Configure Pages

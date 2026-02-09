@@ -19,28 +19,34 @@ export const useInstallPrompt = () => {
       event.preventDefault();
       setDeferredPrompt(event as BeforeInstallPromptEvent);
     };
+    const onAppInstalled = () => {
+      setDeferredPrompt(null);
+      setInstallHint('');
+    };
 
     window.addEventListener('beforeinstallprompt', onBeforeInstallPrompt);
-    return () => window.removeEventListener('beforeinstallprompt', onBeforeInstallPrompt);
+    window.addEventListener('appinstalled', onAppInstalled);
+    return () => {
+      window.removeEventListener('beforeinstallprompt', onBeforeInstallPrompt);
+      window.removeEventListener('appinstalled', onAppInstalled);
+    };
   }, []);
 
   const install = async () => {
-    if (isStandalone) return;
-    if (deferredPrompt) {
-      await deferredPrompt.prompt();
-      const choice = await deferredPrompt.userChoice;
-      if (choice.outcome === 'dismissed') {
-        setInstallHint('已取消添加到桌面');
-      }
-      setDeferredPrompt(null);
-      return;
+    if (isStandalone || !deferredPrompt) return;
+    await deferredPrompt.prompt();
+    const choice = await deferredPrompt.userChoice;
+    if (choice.outcome === 'dismissed') {
+      setInstallHint('已取消添加到桌面');
+    } else {
+      setInstallHint('');
     }
-    setInstallHint('请使用浏览器菜单“添加到主屏幕”');
+    setDeferredPrompt(null);
   };
 
   return {
     isStandalone,
-    canInstall: !isStandalone,
+    canInstall: !isStandalone && !!deferredPrompt,
     installHint,
     install
   };

@@ -45,3 +45,14 @@
 
 当前工作流使用 `npm run build:easydrop`，部署子路径基址为 `/easydrop/`，对应访问路径：
 `https://<your-domain-or-user-site>/easydrop/`
+
+注意：
+GitHub Pages 仅提供静态托管，不会运行 WebSocket 信令服务。  
+因此需要额外提供一个可公网访问的信令地址（`wss://...`）。
+
+在仓库中设置：
+1. `Settings -> Secrets and variables -> Actions`
+2. 新建 `Repository secret`：`VITE_SIGNALING_URL`
+3. 值示例：`wss://your-signal-server.example.com/ws`
+
+工作流会在构建时注入该地址，页面端使用它做设备发现与 WebRTC 信令交换。

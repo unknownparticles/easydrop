@@ -80,7 +80,7 @@ export const DeviceOrbit: React.FC<DeviceOrbitProps> = ({
       })}
 
       {devices.length === 0 && (
-        <div className="absolute inset-0 flex items-center justify-center text-sm text-slate-400">
+        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 rounded-full bg-white/85 px-4 py-2 text-sm text-slate-400">
           暂无其他设备在线
         </div>
       )}
