@@ -1,0 +1,13 @@
+node_modules
+.certs
+dist
+.DS_Store
+
+# GitHub Actions local/debug artifacts
+.actrc
+.secrets
+.env.github-actions
+.github/.cache/
+.github/workflows/*.local.yml
+.github/workflows/*.local.yaml
+artifacts/
