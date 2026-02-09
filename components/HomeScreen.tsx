@@ -29,6 +29,7 @@ interface HomeScreenProps {
   filterType: TransferType | 'ALL';
   onFilterChange: (value: TransferType | 'ALL') => void;
   copiedId: string | null;
+  activeTransferId: string | null;
   onCopy: (text: string, id: string) => void;
   onDownload: (item: TransferItem) => void;
   onClearAll: () => void;
@@ -58,6 +59,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   filterType,
   onFilterChange,
   copiedId,
+  activeTransferId,
   onCopy,
   onDownload,
   onClearAll,
@@ -114,6 +116,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           onSearchChange={onSearchChange}
           filterType={filterType}
           onFilterChange={onFilterChange}
+          activeItemId={activeTransferId}
           onCopy={onCopy}
           onDownload={onDownload}
           onClearAll={onClearAll}

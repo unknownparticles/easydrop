@@ -25,16 +25,55 @@ const App: React.FC = () => {
   const [transferCollapsed, setTransferCollapsed] = useState(true);
   const [selectedDevice, setSelectedDevice] = useState<Device | null>(null);
   const [hint, setHint] = useState('');
+  const [activeTransferId, setActiveTransferId] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ id: number; text: string } | null>(null);
   const { isOnline, networkLabel } = useNetworkStatus();
   const install = useInstallPrompt();
   const galleryInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const toastTimerRef = useRef<number | null>(null);
   const transfers = useTransfers();
 
+  const showToast = (text: string) => {
+    setToast({ id: Date.now(), text });
+    if (toastTimerRef.current) window.clearTimeout(toastTimerRef.current);
+    toastTimerRef.current = window.setTimeout(() => setToast(null), 1800);
+  };
+
+  const focusTransferItem = (id: string) => {
+    setTransferCollapsed(false);
+    setActiveTransferId(id);
+  };
+
   const webRtc = useWebRTC(deviceName, {
-    onUpdateTransfer: (id, patch) => transfers.setTransfers((prev) => prev.map((item) => (item.id === id ? { ...item, ...patch } : item))),
-    onAddTransfer: (item) => transfers.setTransfers((prev) => [item, ...prev])
+    onUpdateTransfer: (id, patch) => {
+      let justCompletedDirection: 'sent' | 'received' | null = null;
+      transfers.setTransfers((prev) =>
+        prev.map((item) => {
+          if (item.id !== id) return item;
+          const updated = { ...item, ...patch };
+          if (item.status !== 'completed' && updated.status === 'completed') {
+            justCompletedDirection = updated.direction;
+          }
+          return updated;
+        })
+      );
+
+      if (patch.status === 'sending' || patch.status === 'receiving' || patch.status === 'completed') {
+        focusTransferItem(id);
+      }
+      if (justCompletedDirection) {
+        showToast(justCompletedDirection === 'sent' ? '发送成功' : '接收成功');
+      }
+    },
+    onAddTransfer: (item) => {
+      transfers.setTransfers((prev) => [item, ...prev]);
+      focusTransferItem(item.id);
+      if (item.status === 'completed') {
+        showToast(item.direction === 'sent' ? '发送成功' : '接收成功');
+      }
+    }
   });
 
   const selfType = useMemo(() => {
@@ -101,6 +140,7 @@ const App: React.FC = () => {
         filterType={transfers.filterType}
         onFilterChange={transfers.setFilterType}
         copiedId={transfers.copiedId}
+        activeTransferId={activeTransferId}
         onCopy={transfers.copyToClipboard}
         onDownload={downloadItem}
         onClearAll={() => transfers.setTransfers([])}
@@ -141,6 +181,12 @@ const App: React.FC = () => {
       <input ref={galleryInputRef} type="file" accept="image/*" className="hidden" onChange={(e) => queueFile(e.target.files?.[0] || null)} />
       <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => queueFile(e.target.files?.[0] || null)} />
       <input ref={fileInputRef} type="file" className="hidden" onChange={(e) => queueFile(e.target.files?.[0] || null)} />
+
+      {toast && (
+        <div key={toast.id} className="fixed z-[70] left-1/2 top-[calc(1rem+env(safe-area-inset-top))] -translate-x-1/2 rounded-full bg-slate-900 text-white text-sm font-semibold px-4 py-2 shadow-lg">
+          {toast.text}
+        </div>
+      )}
     </div>
   );
 };
