@@ -112,6 +112,11 @@ wss.on('connection', (ws) => {
 
     if (type === 'rtc:offer' || type === 'rtc:answer' || type === 'rtc:ice') {
       sendTo(payload?.to, type, { ...payload, from: clientId });
+      return;
+    }
+
+    if (type === 'text:message') {
+      sendTo(payload?.to, 'text:message', { ...payload, from: clientId });
     }
   });
 

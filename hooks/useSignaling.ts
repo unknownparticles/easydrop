@@ -24,6 +24,7 @@ interface SignalingHandlers {
   onIce: (from: string, candidate: RTCIceCandidateInit) => void;
   onPairAccepted: (from: string) => void;
   onPairRejected: (from: string) => void;
+  onTextMessage: (from: string, text: string) => void;
 }
 
 export const useSignaling = (deviceName: string, handlers: SignalingHandlers) => {
@@ -128,6 +129,13 @@ export const useSignaling = (deviceName: string, handlers: SignalingHandlers) =>
           return;
         }
 
+        if (type === 'text:message') {
+          const from = payload?.from;
+          const text = payload?.text;
+          if (from && typeof text === 'string') handlersRef.current.onTextMessage(from, text);
+          return;
+        }
+
         if (type === 'share:accept') {
           const from = payload?.from;
           if (from) handlersRef.current.onPairAccepted(from);
@@ -190,6 +198,10 @@ export const useSignaling = (deviceName: string, handlers: SignalingHandlers) =>
     sendSignal('share:request', { to: device.id, name: deviceNameRef.current, deviceType: detectDeviceType(), ...payload });
   };
 
+  const sendTextMessage = (device: Device, text: string) => {
+    sendSignal('text:message', { to: device.id, text });
+  };
+
   const acceptShareRequest = (request: ShareRequest) => {
     setShareRequests((prev) => prev.filter((item) => item.from !== request.from));
     sendSignal('share:accept', { to: request.from });
@@ -205,6 +217,7 @@ export const useSignaling = (deviceName: string, handlers: SignalingHandlers) =>
     signalStatus,
     shareRequests,
     requestShare,
+    sendTextMessage,
     acceptShareRequest,
     rejectShareRequest,
     sendSignal

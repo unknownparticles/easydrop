@@ -65,28 +65,32 @@ export const usePeerConnections = (handlers: PeerHandlers) => {
       dataChannelRef.current.delete(peerId);
     }
 
-    const { pc, localDescription } = await createPeerConnection(peerId, isInitiator, remoteOffer, buildIceServers(), {
-      onIceCandidate: (candidate) => handlers.onSendSignal('rtc:ice', { to: peerId, candidate }),
-      onConnectionState: (state) => {
-        if (state === 'connected') {
-          setPairingStatus((prev) => ({ ...prev, [peerId]: 'connected' }));
-          setActivePeerId(peerId);
-          transferManagerRef.current.resumePending(peerId);
-        }
-        if (state === 'failed' || state === 'disconnected') {
-          setPairingStatus((prev) => ({ ...prev, [peerId]: 'paused' }));
-          peerRef.current.delete(peerId);
-          dataChannelRef.current.delete(peerId);
-        }
-      },
-      onDataChannel: (channel) => setupDataChannel(peerId, channel)
-    });
+    try {
+      const { pc, localDescription } = await createPeerConnection(peerId, isInitiator, remoteOffer, buildIceServers(), {
+        onIceCandidate: (candidate) => handlers.onSendSignal('rtc:ice', { to: peerId, candidate }),
+        onConnectionState: (state) => {
+          if (state === 'connected') {
+            setPairingStatus((prev) => ({ ...prev, [peerId]: 'connected' }));
+            setActivePeerId(peerId);
+            transferManagerRef.current.resumePending(peerId);
+          }
+          if (state === 'failed' || state === 'disconnected') {
+            setPairingStatus((prev) => ({ ...prev, [peerId]: 'paused' }));
+            peerRef.current.delete(peerId);
+            dataChannelRef.current.delete(peerId);
+          }
+        },
+        onDataChannel: (channel) => setupDataChannel(peerId, channel)
+      });
 
-    peerRef.current.set(peerId, pc);
-    setPairingStatus((prev) => ({ ...prev, [peerId]: 'connecting' }));
+      peerRef.current.set(peerId, pc);
+      setPairingStatus((prev) => ({ ...prev, [peerId]: 'connecting' }));
 
-    if (localDescription) {
-      handlers.onSendSignal(isInitiator ? 'rtc:offer' : 'rtc:answer', { to: peerId, sdp: localDescription });
+      if (localDescription) {
+        handlers.onSendSignal(isInitiator ? 'rtc:offer' : 'rtc:answer', { to: peerId, sdp: localDescription });
+      }
+    } catch {
+      setPairingStatus((prev) => ({ ...prev, [peerId]: 'failed' }));
     }
   };
 

@@ -105,7 +105,7 @@ export class SignalRoom {
     }
 
     if (type === 'share:request' || type === 'share:accept' || type === 'share:reject' ||
-      type === 'rtc:offer' || type === 'rtc:answer' || type === 'rtc:ice') {
+      type === 'rtc:offer' || type === 'rtc:answer' || type === 'rtc:ice' || type === 'text:message') {
       const to = payload?.to as string | undefined;
       if (!to) return;
       this.sendTo(to, type, { ...payload, from: senderId });

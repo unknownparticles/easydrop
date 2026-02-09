@@ -3,6 +3,7 @@ import { Device, TransferItem, TransferType } from '../types';
 import { usePeerConnections } from './usePeerConnections';
 import { useSignaling } from './useSignaling';
 import { ShareRequest } from '../services/rtc/rtcTypes';
+import { generateId } from '../utils/id';
 
 interface WebRTCHandlers {
   onUpdateTransfer: (id: string, patch: Partial<TransferItem>) => void;
@@ -26,7 +27,22 @@ export const useWebRTC = (deviceName: string, handlers: WebRTCHandlers) => {
       peerRef.current?.setPairingStatus((prev) => ({ ...prev, [from]: 'connecting' }));
       peerRef.current?.createConnection(from, true);
     },
-    onPairRejected: (from) => peerRef.current?.setPairingStatus((prev) => ({ ...prev, [from]: 'rejected' }))
+    onPairRejected: (from) => peerRef.current?.setPairingStatus((prev) => ({ ...prev, [from]: 'rejected' })),
+    onTextMessage: (from, text) => {
+      handlers.onAddTransfer({
+        id: generateId(),
+        type: TransferType.TEXT,
+        content: text,
+        fileName: '文字消息',
+        fileSize: text.length,
+        mimeType: 'text/plain',
+        timestamp: Date.now(),
+        sender: from,
+        direction: 'received',
+        status: 'completed',
+        progress: 100
+      });
+    }
   });
 
   const peer = usePeerConnections({
@@ -72,8 +88,20 @@ export const useWebRTC = (deviceName: string, handlers: WebRTCHandlers) => {
     rejectShareRequest,
     disconnectPeer: peer.disconnectPeer,
     queueText: (device: Device, text: string) => {
-      pendingRef.current = { peerId: device.id, kind: TransferType.TEXT, text };
-      requestShare(device, { kind: 'text' });
+      handlers.onAddTransfer({
+        id: generateId(),
+        type: TransferType.TEXT,
+        content: text,
+        fileName: '文字消息',
+        fileSize: text.length,
+        mimeType: 'text/plain',
+        timestamp: Date.now(),
+        sender: '本地设备',
+        direction: 'sent',
+        status: 'completed',
+        progress: 100
+      });
+      signaling.sendTextMessage(device, text);
     },
     queueFile: (device: Device, file: File, kind: TransferType) => {
       pendingRef.current = { peerId: device.id, kind, file };
