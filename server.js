@@ -117,6 +117,11 @@ wss.on('connection', (ws) => {
 
     if (type === 'text:message') {
       sendTo(payload?.to, 'text:message', { ...payload, from: clientId });
+      return;
+    }
+
+    if (type === 'relay:file-meta' || type === 'relay:file-chunk' || type === 'relay:file-complete') {
+      sendTo(payload?.to, type, { ...payload, from: clientId });
     }
   });
 

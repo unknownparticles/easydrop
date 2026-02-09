@@ -25,6 +25,9 @@ interface SignalingHandlers {
   onPairAccepted: (from: string) => void;
   onPairRejected: (from: string) => void;
   onTextMessage: (from: string, text: string) => void;
+  onRelayFileMeta: (from: string, payload: Record<string, unknown>) => void;
+  onRelayFileChunk: (from: string, payload: Record<string, unknown>) => void;
+  onRelayFileComplete: (from: string, payload: Record<string, unknown>) => void;
 }
 
 export const useSignaling = (deviceName: string, handlers: SignalingHandlers) => {
@@ -137,6 +140,24 @@ export const useSignaling = (deviceName: string, handlers: SignalingHandlers) =>
           const from = payload?.from;
           const text = payload?.text;
           if (from && typeof text === 'string') handlersRef.current.onTextMessage(from, text);
+          return;
+        }
+
+        if (type === 'relay:file-meta') {
+          const from = payload?.from;
+          if (from) handlersRef.current.onRelayFileMeta(from, payload || {});
+          return;
+        }
+
+        if (type === 'relay:file-chunk') {
+          const from = payload?.from;
+          if (from) handlersRef.current.onRelayFileChunk(from, payload || {});
+          return;
+        }
+
+        if (type === 'relay:file-complete') {
+          const from = payload?.from;
+          if (from) handlersRef.current.onRelayFileComplete(from, payload || {});
           return;
         }
 

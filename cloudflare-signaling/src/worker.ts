@@ -105,7 +105,8 @@ export class SignalRoom {
     }
 
     if (type === 'share:request' || type === 'share:accept' || type === 'share:reject' ||
-      type === 'rtc:offer' || type === 'rtc:answer' || type === 'rtc:ice' || type === 'text:message') {
+      type === 'rtc:offer' || type === 'rtc:answer' || type === 'rtc:ice' || type === 'text:message' ||
+      type === 'relay:file-meta' || type === 'relay:file-chunk' || type === 'relay:file-complete') {
       const to = payload?.to as string | undefined;
       if (!to) return;
       this.sendTo(to, type, { ...payload, from: senderId });

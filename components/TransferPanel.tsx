@@ -75,7 +75,7 @@ export const TransferPanel: React.FC<TransferPanelProps> = ({
                     )}
                     <div className="text-[10px] text-slate-400">{item.direction === 'sent' ? '发送' : '接收'} · {item.status} · {item.progress}%</div>
                   </div>
-                  <div className="flex items-center gap-2 text-[10px] font-semibold">
+                  <div className="flex items-center gap-2 text-[11px] font-semibold">
                     {item.type === TransferType.TEXT ? (
                       <button onClick={() => onCopy(item.content, item.id)} className="text-slate-500">{copiedId === item.id ? '已复制' : '复制'}</button>
                     ) : (
@@ -83,7 +83,9 @@ export const TransferPanel: React.FC<TransferPanelProps> = ({
                         <button onClick={() => onDownload(item)} className="text-indigo-600">下载</button>
                       )
                     )}
-                    <button onClick={() => onDelete(item.id)} className="text-red-400">删</button>
+                    <button onClick={() => onDelete(item.id)} className="rounded-full px-2 py-0.5 text-red-500 bg-red-50/80 hover:bg-red-100">
+                      删除
+                    </button>
                   </div>
                 </div>
               </div>

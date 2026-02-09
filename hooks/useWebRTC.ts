@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useRef } from 'react';
 import { Device, TransferItem, TransferType } from '../types';
 import { usePeerConnections } from './usePeerConnections';
 import { useSignaling } from './useSignaling';
@@ -12,12 +12,77 @@ interface WebRTCHandlers {
 
 export const useWebRTC = (deviceName: string, handlers: WebRTCHandlers) => {
   const peerRef = useRef<ReturnType<typeof usePeerConnections> | null>(null);
-  const pendingRef = useRef<{
-    peerId: string;
+  const relayReceiveRef = useRef(new Map<string, {
+    from: string;
     kind: TransferType;
-    text?: string;
-    file?: File;
-  } | null>(null);
+    name: string;
+    mime: string;
+    totalChunks: number;
+    chunks: string[];
+    receivedCount: number;
+    transferId: string;
+  }>());
+
+  const base64ToBlobUrl = (chunks: string[], mime: string) => {
+    const bytes: number[] = [];
+    for (const chunk of chunks) {
+      const binary = atob(chunk);
+      for (let i = 0; i < binary.length; i += 1) bytes.push(binary.charCodeAt(i));
+    }
+    return URL.createObjectURL(new Blob([new Uint8Array(bytes)], { type: mime || 'application/octet-stream' }));
+  };
+
+  const sendFileByRelay = async (device: Device, file: File, kind: TransferType) => {
+    const fileId = generateId();
+    const transferId = generateId();
+    const chunkSize = 48 * 1024;
+    const totalChunks = Math.max(1, Math.ceil(file.size / chunkSize));
+    const mime = file.type || 'application/octet-stream';
+    const objectUrl = URL.createObjectURL(file);
+
+    handlers.onAddTransfer({
+      id: transferId,
+      type: kind,
+      content: objectUrl,
+      fileName: file.name,
+      fileSize: file.size,
+      mimeType: mime,
+      timestamp: Date.now(),
+      sender: '本地设备',
+      direction: 'sent',
+      status: 'sending',
+      progress: 0
+    });
+
+    signaling.sendSignal('relay:file-meta', {
+      to: device.id,
+      fileId,
+      name: file.name,
+      mime,
+      size: file.size,
+      totalChunks,
+      kind: kind === TransferType.IMAGE ? 'image' : 'file'
+    });
+
+    for (let index = 0; index < totalChunks; index += 1) {
+      const start = index * chunkSize;
+      const end = Math.min(start + chunkSize, file.size);
+      const buffer = await file.slice(start, end).arrayBuffer();
+      const bytes = new Uint8Array(buffer);
+      let binary = '';
+      for (let i = 0; i < bytes.length; i += 1) binary += String.fromCharCode(bytes[i]);
+      signaling.sendSignal('relay:file-chunk', {
+        to: device.id,
+        fileId,
+        index,
+        data: btoa(binary)
+      });
+      const progress = Math.floor(((index + 1) / totalChunks) * 100);
+      handlers.onUpdateTransfer(transferId, { progress, status: progress === 100 ? 'completed' : 'sending' });
+    }
+
+    signaling.sendSignal('relay:file-complete', { to: device.id, fileId });
+  };
 
   const signaling = useSignaling(deviceName, {
     onOffer: (from, sdp) => peerRef.current?.createConnection(from, false, sdp),
@@ -42,6 +107,63 @@ export const useWebRTC = (deviceName: string, handlers: WebRTCHandlers) => {
         status: 'completed',
         progress: 100
       });
+    },
+    onRelayFileMeta: (from, payload) => {
+      const fileId = String(payload.fileId || '');
+      if (!fileId) return;
+      const kind = payload.kind === 'image' ? TransferType.IMAGE : TransferType.FILE;
+      const name = String(payload.name || 'shared-file');
+      const mime = String(payload.mime || 'application/octet-stream');
+      const totalChunks = Number(payload.totalChunks || 0);
+      const transferId = generateId();
+      handlers.onAddTransfer({
+        id: transferId,
+        type: kind,
+        content: '',
+        fileName: name,
+        fileSize: Number(payload.size || 0),
+        mimeType: mime,
+        timestamp: Date.now(),
+        sender: from,
+        direction: 'received',
+        status: 'receiving',
+        progress: 0
+      });
+      relayReceiveRef.current.set(fileId, {
+        from,
+        kind,
+        name,
+        mime,
+        totalChunks: Math.max(1, totalChunks),
+        chunks: Array(Math.max(1, totalChunks)).fill(''),
+        receivedCount: 0,
+        transferId
+      });
+    },
+    onRelayFileChunk: (_from, payload) => {
+      const fileId = String(payload.fileId || '');
+      const index = Number(payload.index);
+      const data = String(payload.data || '');
+      const state = relayReceiveRef.current.get(fileId);
+      if (!state || !data || Number.isNaN(index) || index < 0 || index >= state.totalChunks) return;
+      if (!state.chunks[index]) {
+        state.chunks[index] = data;
+        state.receivedCount += 1;
+        const progress = Math.floor((state.receivedCount / state.totalChunks) * 100);
+        handlers.onUpdateTransfer(state.transferId, { progress, status: progress === 100 ? 'completed' : 'receiving' });
+      }
+    },
+    onRelayFileComplete: (_from, payload) => {
+      const fileId = String(payload.fileId || '');
+      const state = relayReceiveRef.current.get(fileId);
+      if (!state) return;
+      if (state.receivedCount !== state.totalChunks) return;
+      handlers.onUpdateTransfer(state.transferId, {
+        content: base64ToBlobUrl(state.chunks, state.mime),
+        status: 'completed',
+        progress: 100
+      });
+      relayReceiveRef.current.delete(fileId);
     }
   });
 
@@ -53,11 +175,6 @@ export const useWebRTC = (deviceName: string, handlers: WebRTCHandlers) => {
 
   peerRef.current = peer;
 
-  const requestShare = (device: Device, payload: Record<string, unknown>) => {
-    signaling.requestShare(device, payload);
-    peer.setPairingStatus((prev) => ({ ...prev, [device.id]: 'requesting' }));
-  };
-
   const acceptShareRequest = (request: ShareRequest) => {
     signaling.acceptShareRequest(request);
     peer.setPairingStatus((prev) => ({ ...prev, [request.from]: 'connecting' }));
@@ -68,22 +185,12 @@ export const useWebRTC = (deviceName: string, handlers: WebRTCHandlers) => {
     peer.setPairingStatus((prev) => ({ ...prev, [request.from]: 'rejected' }));
   };
 
-  useEffect(() => {
-    if (!pendingRef.current) return;
-    if (peer.activePeerId !== pendingRef.current.peerId) return;
-    const pending = pendingRef.current;
-    pendingRef.current = null;
-    if (pending.kind === TransferType.TEXT && pending.text) peer.sendText(pending.text);
-    if (pending.kind !== TransferType.TEXT && pending.file) peer.sendFile(pending.file, pending.kind);
-  }, [peer.activePeerId, peer.sendFile, peer.sendText]);
-
   return {
     devices: signaling.devices,
     signalStatus: signaling.signalStatus,
     shareRequests: signaling.shareRequests,
     pairingStatus: peer.pairingStatus,
     activePeerId: peer.activePeerId,
-    requestShare,
     acceptShareRequest,
     rejectShareRequest,
     disconnectPeer: peer.disconnectPeer,
@@ -104,8 +211,12 @@ export const useWebRTC = (deviceName: string, handlers: WebRTCHandlers) => {
       signaling.sendTextMessage(device, text);
     },
     queueFile: (device: Device, file: File, kind: TransferType) => {
-      pendingRef.current = { peerId: device.id, kind, file };
-      requestShare(device, { kind: kind === TransferType.IMAGE ? 'image' : 'file', fileName: file.name, fileSize: file.size, mimeType: file.type });
+      const connected = peer.activePeerId === device.id && peer.pairingStatus[device.id] === 'connected';
+      if (typeof RTCPeerConnection === 'undefined' || !connected) {
+        void sendFileByRelay(device, file, kind);
+        return;
+      }
+      peer.sendFile(file, kind);
     }
   };
 };
