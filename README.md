@@ -33,3 +33,15 @@
 
 在 HTTPS 下打开页面后，可使用浏览器“添加到主屏幕 / 安装应用”功能。  
 离线时仅显示“无网络不可用”提示（不支持离线传输）。
+
+## GitHub Pages（GitHub Actions）
+
+仓库已包含自动部署工作流：`/Users/alun/Downloads/localdrop-ai/.github/workflows/deploy-pages.yml`。
+
+配置步骤：
+1. 打开仓库 `Settings -> Pages`
+2. `Build and deployment -> Source` 选择 `GitHub Actions`
+3. 推送到 `main` 后会自动部署
+
+当前工作流使用 `npm run build:easydrop`，部署子路径基址为 `/easydrop/`，对应访问路径：
+`https://<your-domain-or-user-site>/easydrop/`
