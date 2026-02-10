@@ -10,7 +10,12 @@ interface WebRTCHandlers {
   onAddTransfer: (item: TransferItem) => void;
 }
 
-export const useWebRTC = (deviceName: string, handlers: WebRTCHandlers) => {
+interface WebRTCOptions {
+  enableRelayFallback?: boolean;
+}
+
+export const useWebRTC = (deviceName: string, handlers: WebRTCHandlers, options: WebRTCOptions = {}) => {
+  const relayFallbackEnabled = options.enableRelayFallback ?? true;
   const peerRef = useRef<ReturnType<typeof usePeerConnections> | null>(null);
   const relayReceiveRef = useRef(new Map<string, {
     from: string;
@@ -212,11 +217,29 @@ export const useWebRTC = (deviceName: string, handlers: WebRTCHandlers) => {
     },
     queueFile: (device: Device, file: File, kind: TransferType) => {
       const connected = peer.activePeerId === device.id && peer.pairingStatus[device.id] === 'connected';
-      if (typeof RTCPeerConnection === 'undefined' || !connected) {
-        void sendFileByRelay(device, file, kind);
-        return;
+      if (typeof RTCPeerConnection !== 'undefined' && connected) {
+        peer.sendFile(file, kind);
+        return true;
       }
-      peer.sendFile(file, kind);
+      if (relayFallbackEnabled) {
+        void sendFileByRelay(device, file, kind);
+        return true;
+      }
+      handlers.onAddTransfer({
+        id: generateId(),
+        type: kind,
+        content: '',
+        fileName: file.name,
+        fileSize: file.size,
+        mimeType: file.type || 'application/octet-stream',
+        timestamp: Date.now(),
+        sender: '本地设备',
+        direction: 'sent',
+        status: 'failed',
+        progress: 0,
+        error: '未建立直连且已关闭中继降级'
+      });
+      return false;
     }
   };
 };

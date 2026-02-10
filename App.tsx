@@ -13,6 +13,7 @@ import { HomeScreen } from './components/HomeScreen';
 
 const STORAGE_DEVICE_ID = 'localdrop_device_id';
 const STORAGE_DEVICE_NAME = 'localdrop_device_name';
+const STORAGE_RELAY_FALLBACK = 'localdrop_relay_fallback_enabled';
 const DEFAULT_DEVICE_PREFIX = () => detectDeviceLabel();
 
 const App: React.FC = () => {
@@ -37,6 +38,14 @@ const App: React.FC = () => {
   const [hint, setHint] = useState('');
   const [activeTransferId, setActiveTransferId] = useState<string | null>(null);
   const [toast, setToast] = useState<{ id: number; text: string } | null>(null);
+  const [relayFallbackEnabled, setRelayFallbackEnabled] = useState(() => {
+    const stored = localStorage.getItem(STORAGE_RELAY_FALLBACK);
+    if (stored == null) {
+      localStorage.setItem(STORAGE_RELAY_FALLBACK, 'true');
+      return true;
+    }
+    return stored !== 'false';
+  });
   const { isOnline, networkLabel } = useNetworkStatus();
   const install = useInstallPrompt();
   const galleryInputRef = useRef<HTMLInputElement>(null);
@@ -56,35 +65,39 @@ const App: React.FC = () => {
     setActiveTransferId(id);
   };
 
-  const webRtc = useWebRTC(deviceName, {
-    onUpdateTransfer: (id, patch) => {
-      let justCompletedDirection: 'sent' | 'received' | null = null;
-      transfers.setTransfers((prev) =>
-        prev.map((item) => {
-          if (item.id !== id) return item;
-          const updated = { ...item, ...patch };
-          if (item.status !== 'completed' && updated.status === 'completed') {
-            justCompletedDirection = updated.direction;
-          }
-          return updated;
-        })
-      );
+  const webRtc = useWebRTC(
+    deviceName,
+    {
+      onUpdateTransfer: (id, patch) => {
+        let justCompletedDirection: 'sent' | 'received' | null = null;
+        transfers.setTransfers((prev) =>
+          prev.map((item) => {
+            if (item.id !== id) return item;
+            const updated = { ...item, ...patch };
+            if (item.status !== 'completed' && updated.status === 'completed') {
+              justCompletedDirection = updated.direction;
+            }
+            return updated;
+          })
+        );
 
-      if (patch.status === 'sending' || patch.status === 'receiving' || patch.status === 'completed') {
-        focusTransferItem(id);
-      }
-      if (justCompletedDirection) {
-        showToast(justCompletedDirection === 'sent' ? '发送成功' : '接收成功');
+        if (patch.status === 'sending' || patch.status === 'receiving' || patch.status === 'completed') {
+          focusTransferItem(id);
+        }
+        if (justCompletedDirection) {
+          showToast(justCompletedDirection === 'sent' ? '发送成功' : '接收成功');
+        }
+      },
+      onAddTransfer: (item) => {
+        transfers.setTransfers((prev) => [item, ...prev]);
+        focusTransferItem(item.id);
+        if (item.status === 'completed') {
+          showToast(item.direction === 'sent' ? '发送成功' : '接收成功');
+        }
       }
     },
-    onAddTransfer: (item) => {
-      transfers.setTransfers((prev) => [item, ...prev]);
-      focusTransferItem(item.id);
-      if (item.status === 'completed') {
-        showToast(item.direction === 'sent' ? '发送成功' : '接收成功');
-      }
-    }
-  });
+    { enableRelayFallback: relayFallbackEnabled }
+  );
 
   const selfType = useMemo(() => {
     const ua = navigator.userAgent.toLowerCase();
@@ -114,7 +127,10 @@ const App: React.FC = () => {
   const queueFile = (file: File | null) => {
     if (!file || !selectedDevice || !isOnline) return setHint('请先选择设备');
     const kind = file.type.startsWith('image/') ? TransferType.IMAGE : TransferType.FILE;
-    webRtc.queueFile(selectedDevice, file, kind);
+    const queued = webRtc.queueFile(selectedDevice, file, kind);
+    if (!queued) {
+      setHint('未建立直连，且已关闭中继降级，当前无法发送');
+    }
   };
 
   const downloadItem = (item: { content: string; fileName?: string }) => {
@@ -140,6 +156,11 @@ const App: React.FC = () => {
         deviceSerial={deviceSerial}
         onDeviceNamePrefixChange={updateDeviceNamePrefix}
         onDeviceNameBlur={() => localStorage.setItem(STORAGE_DEVICE_NAME, deviceName)}
+        relayFallbackEnabled={relayFallbackEnabled}
+        onRelayFallbackToggle={(enabled) => {
+          setRelayFallbackEnabled(enabled);
+          localStorage.setItem(STORAGE_RELAY_FALLBACK, String(enabled));
+        }}
         devices={webRtc.devices as Device[]}
         pairingStatus={webRtc.pairingStatus}
         selfType={selfType}

@@ -13,6 +13,8 @@ interface HomeScreenProps {
   deviceSerial: string;
   onDeviceNamePrefixChange: (name: string) => void;
   onDeviceNameBlur: () => void;
+  relayFallbackEnabled: boolean;
+  onRelayFallbackToggle: (enabled: boolean) => void;
   devices: Device[];
   pairingStatus: Record<string, string>;
   selfType: Device['type'];
@@ -45,6 +47,8 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   deviceSerial,
   onDeviceNamePrefixChange,
   onDeviceNameBlur,
+  relayFallbackEnabled,
+  onRelayFallbackToggle,
   devices,
   pairingStatus,
   selfType,
@@ -95,6 +99,15 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
               />
               <span className="text-slate-500 font-semibold select-none">{deviceSerial}</span>
             </div>
+            <label className="flex items-center gap-2 bg-white/80 rounded-2xl px-3 py-2 text-xs text-slate-600">
+              <input
+                type="checkbox"
+                checked={relayFallbackEnabled}
+                onChange={(e) => onRelayFallbackToggle(e.target.checked)}
+                className="accent-indigo-600"
+              />
+              允许降级中继
+            </label>
           </div>
         </div>
 
