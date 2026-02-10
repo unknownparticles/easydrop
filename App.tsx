@@ -4,21 +4,31 @@ import { useNetworkStatus } from './hooks/useNetworkStatus';
 import { useTransfers } from './hooks/useTransfers';
 import { useWebRTC } from './hooks/useWebRTC';
 import { useInstallPrompt } from './hooks/useInstallPrompt';
-import { generateDefaultName } from './utils/device';
+import { composeDeviceName, deriveDeviceSerial, detectDeviceLabel, parseDeviceName } from './utils/device';
+import { generateId } from './utils/id';
 import { TopNav } from './components/TopNav';
 import { ShareMenuModal } from './components/ShareMenuModal';
 import { TextShareModal } from './components/TextShareModal';
 import { HomeScreen } from './components/HomeScreen';
 
+const STORAGE_DEVICE_ID = 'localdrop_device_id';
 const STORAGE_DEVICE_NAME = 'localdrop_device_name';
+const DEFAULT_DEVICE_PREFIX = () => detectDeviceLabel();
 
 const App: React.FC = () => {
+  const [deviceSerial] = useState(() => {
+    const storedId = localStorage.getItem(STORAGE_DEVICE_ID) || generateId();
+    localStorage.setItem(STORAGE_DEVICE_ID, storedId);
+    return deriveDeviceSerial(storedId);
+  });
+
   const [deviceName, setDeviceName] = useState(() => {
+    const fallbackPrefix = DEFAULT_DEVICE_PREFIX();
     const stored = localStorage.getItem(STORAGE_DEVICE_NAME);
-    if (stored) return stored;
-    const fallback = generateDefaultName();
-    localStorage.setItem(STORAGE_DEVICE_NAME, fallback);
-    return fallback;
+    const parsed = parseDeviceName(stored || '');
+    const normalized = composeDeviceName(parsed.prefix, deviceSerial, fallbackPrefix);
+    localStorage.setItem(STORAGE_DEVICE_NAME, normalized);
+    return normalized;
   });
   const [shareOpen, setShareOpen] = useState(false);
   const [textShareOpen, setTextShareOpen] = useState(false);
@@ -83,6 +93,12 @@ const App: React.FC = () => {
     return 'desktop';
   }, []);
 
+  const deviceNamePrefix = useMemo(() => parseDeviceName(deviceName).prefix, [deviceName]);
+
+  const updateDeviceNamePrefix = (prefix: string) => {
+    setDeviceName(composeDeviceName(prefix, deviceSerial, DEFAULT_DEVICE_PREFIX()));
+  };
+
   const chooseDevice = (device: Device) => {
     if (!isOnline) return;
     setSelectedDevice(device);
@@ -120,7 +136,9 @@ const App: React.FC = () => {
       <HomeScreen
         isOnline={isOnline}
         deviceName={deviceName}
-        onDeviceNameChange={setDeviceName}
+        deviceNamePrefix={deviceNamePrefix}
+        deviceSerial={deviceSerial}
+        onDeviceNamePrefixChange={updateDeviceNamePrefix}
         onDeviceNameBlur={() => localStorage.setItem(STORAGE_DEVICE_NAME, deviceName)}
         devices={webRtc.devices as Device[]}
         pairingStatus={webRtc.pairingStatus}

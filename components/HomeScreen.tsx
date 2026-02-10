@@ -9,7 +9,9 @@ import { ShareRequest } from '../services/rtc/rtcTypes';
 interface HomeScreenProps {
   isOnline: boolean;
   deviceName: string;
-  onDeviceNameChange: (name: string) => void;
+  deviceNamePrefix: string;
+  deviceSerial: string;
+  onDeviceNamePrefixChange: (name: string) => void;
   onDeviceNameBlur: () => void;
   devices: Device[];
   pairingStatus: Record<string, string>;
@@ -39,7 +41,9 @@ interface HomeScreenProps {
 export const HomeScreen: React.FC<HomeScreenProps> = ({
   isOnline,
   deviceName,
-  onDeviceNameChange,
+  deviceNamePrefix,
+  deviceSerial,
+  onDeviceNamePrefixChange,
   onDeviceNameBlur,
   devices,
   pairingStatus,
@@ -84,11 +88,12 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             <div className="flex items-center gap-2 bg-white/80 rounded-2xl px-3 py-2 text-xs">
               <span className="text-slate-400">设备名</span>
               <input
-                value={deviceName}
-                onChange={(e) => onDeviceNameChange(e.target.value)}
+                value={deviceNamePrefix}
+                onChange={(e) => onDeviceNamePrefixChange(e.target.value)}
                 onBlur={onDeviceNameBlur}
                 className="bg-transparent outline-none text-slate-700 font-bold"
               />
+              <span className="text-slate-500 font-semibold select-none">{deviceSerial}</span>
             </div>
           </div>
         </div>
