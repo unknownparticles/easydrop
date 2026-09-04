@@ -14,7 +14,7 @@ interface WebRTCOptions {
   enableRelayFallback?: boolean;
 }
 
-export const useWebRTC = (deviceName: string, handlers: WebRTCHandlers, options: WebRTCOptions = {}) => {
+export const useWebRTC = (deviceName: string, roomCode: string | null, handlers: WebRTCHandlers, options: WebRTCOptions = {}) => {
   const relayFallbackEnabled = options.enableRelayFallback ?? true;
   const peerRef = useRef<ReturnType<typeof usePeerConnections> | null>(null);
   const relayReceiveRef = useRef(new Map<string, {
@@ -89,7 +89,7 @@ export const useWebRTC = (deviceName: string, handlers: WebRTCHandlers, options:
     signaling.sendSignal('relay:file-complete', { to: device.id, fileId });
   };
 
-  const signaling = useSignaling(deviceName, {
+  const signaling = useSignaling(deviceName, roomCode, {
     onOffer: (from, sdp) => peerRef.current?.createConnection(from, false, sdp),
     onAnswer: (from, sdp) => peerRef.current?.handleAnswer(from, sdp),
     onIce: (from, candidate) => peerRef.current?.handleIce(from, candidate),

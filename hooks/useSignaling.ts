@@ -9,13 +9,23 @@ const STORAGE_KEYS = {
   deviceName: 'localdrop_device_name'
 };
 
-const buildDefaultSignalingUrl = () => {
+const buildDefaultSignalingUrl = (roomCode?: string | null) => {
   const envUrl = import.meta.env.VITE_SIGNALING_URL as string | undefined;
-  if (envUrl && envUrl.trim()) return envUrl.trim();
-  if (typeof window === 'undefined') return 'ws://localhost/ws';
-  const { protocol, host } = window.location;
-  const wsProtocol = protocol === 'https:' ? 'wss' : 'ws';
-  return `${wsProtocol}://${host}/ws`;
+  let base: string;
+  if (envUrl && envUrl.trim()) {
+    base = envUrl.trim();
+  } else if (typeof window === 'undefined') {
+    base = 'ws://localhost/ws';
+  } else {
+    const { protocol, host } = window.location;
+    const wsProtocol = protocol === 'https:' ? 'wss' : 'ws';
+    base = `${wsProtocol}://${host}/ws`;
+  }
+  if (roomCode) {
+    const separator = base.includes('?') ? '&' : '?';
+    return `${base}${separator}code=${roomCode}`;
+  }
+  return base;
 };
 
 interface SignalingHandlers {
@@ -30,11 +40,11 @@ interface SignalingHandlers {
   onRelayFileComplete: (from: string, payload: Record<string, unknown>) => void;
 }
 
-export const useSignaling = (deviceName: string, handlers: SignalingHandlers) => {
+export const useSignaling = (deviceName: string, roomCode: string | null, handlers: SignalingHandlers) => {
   const [devices, setDevices] = useState<Device[]>([]);
   const [signalStatus, setSignalStatus] = useState<SignalStatus>('offline');
   const [shareRequests, setShareRequests] = useState<ShareRequest[]>([]);
-  const signalingUrl = useMemo(() => buildDefaultSignalingUrl(), []);
+  const signalingUrl = useMemo(() => buildDefaultSignalingUrl(roomCode), [roomCode]);
   const wsRef = useRef<WebSocket | null>(null);
   const deviceIdRef = useRef<string>('');
   const deviceNameRef = useRef(deviceName);

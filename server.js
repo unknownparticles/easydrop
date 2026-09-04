@@ -32,27 +32,64 @@ const server = hasCert
   : http.createServer(app);
 
 const wss = new WebSocketServer({ server, path: '/ws' });
-const clients = new Map(); // id -> { ws, device }
 
-function broadcast(type, payload) {
+// Room-based client management: roomId -> Map<deviceId, { ws, device }>
+const rooms = new Map();
+// Track code creation times for expiry: code -> timestamp
+const codeExpiry = new Map();
+// Track each ws -> { roomId, clientId } for cleanup
+const wsRoomMap = new WeakMap();
+
+const CODE_TTL = 60 * 60 * 1000; // 1 hour
+
+function getClientIp(req) {
+  const forwarded = req.headers['x-forwarded-for'];
+  if (forwarded) return forwarded.split(',')[0].trim();
+  return req.socket.remoteAddress || 'unknown';
+}
+
+function getRoomId(req) {
+  const url = new URL(req.url, 'http://localhost');
+  const code = url.searchParams.get('code');
+  if (code && /^\d{4}$/.test(code)) {
+    if (!codeExpiry.has(code)) {
+      codeExpiry.set(code, Date.now());
+    }
+    return `code:${code}`;
+  }
+  return `ip:${getClientIp(req)}`;
+}
+
+function getRoom(roomId) {
+  if (!rooms.has(roomId)) rooms.set(roomId, new Map());
+  return rooms.get(roomId);
+}
+
+function broadcastToRoom(roomId, type, payload) {
+  const room = rooms.get(roomId);
+  if (!room) return;
   const message = JSON.stringify({ type, payload });
-  for (const { ws } of clients.values()) {
+  for (const { ws } of room.values()) {
     if (ws.readyState === ws.OPEN) {
       ws.send(message);
     }
   }
 }
 
-function sendTo(id, type, payload) {
-  const client = clients.get(id);
+function sendTo(roomId, id, type, payload) {
+  const room = rooms.get(roomId);
+  if (!room) return;
+  const client = room.get(id);
   if (!client) return;
   if (client.ws.readyState === client.ws.OPEN) {
     client.ws.send(JSON.stringify({ type, payload }));
   }
 }
 
-function presenceList() {
-  return Array.from(clients.values()).map(({ device }) => ({
+function presenceList(roomId) {
+  const room = rooms.get(roomId);
+  if (!room) return [];
+  return Array.from(room.values()).map(({ device }) => ({
     id: device.id,
     name: device.name,
     type: device.type,
@@ -61,8 +98,28 @@ function presenceList() {
   }));
 }
 
-wss.on('connection', (ws) => {
+// Cleanup expired code rooms every 60 seconds
+setInterval(() => {
+  const now = Date.now();
+  for (const [code, created] of codeExpiry) {
+    if (now - created > CODE_TTL) {
+      const roomId = `code:${code}`;
+      const room = rooms.get(roomId);
+      if (room) {
+        for (const { ws } of room.values()) {
+          try { ws.close(1000, 'Code expired'); } catch { /* ignore */ }
+        }
+        rooms.delete(roomId);
+      }
+      codeExpiry.delete(code);
+    }
+  }
+}, 60_000);
+
+wss.on('connection', (ws, req) => {
   let clientId = null;
+  const roomId = getRoomId(req);
+  wsRoomMap.set(ws, { roomId, clientId: null });
 
   ws.on('message', (raw) => {
     let message;
@@ -79,56 +136,65 @@ wss.on('connection', (ws) => {
       const device = payload?.device;
       if (!device?.id) return;
       clientId = device.id;
-      clients.set(device.id, { ws, device: { ...device } });
-      broadcast('presence:list', { devices: presenceList() });
+      wsRoomMap.set(ws, { roomId, clientId });
+      const room = getRoom(roomId);
+      room.set(device.id, { ws, device: { ...device } });
+      broadcastToRoom(roomId, 'presence:list', { devices: presenceList(roomId) });
       return;
     }
 
     if (!clientId) return;
 
     if (type === 'rename') {
-      const client = clients.get(clientId);
+      const room = rooms.get(roomId);
+      const client = room?.get(clientId);
       if (client) {
         client.device.name = payload?.name || client.device.name;
-        broadcast('presence:list', { devices: presenceList() });
+        broadcastToRoom(roomId, 'presence:list', { devices: presenceList(roomId) });
       }
       return;
     }
 
     if (type === 'share:request') {
-      sendTo(payload?.to, 'share:request', { ...payload, from: clientId });
+      sendTo(roomId, payload?.to, 'share:request', { ...payload, from: clientId });
       return;
     }
 
     if (type === 'share:accept') {
-      sendTo(payload?.to, 'share:accept', { ...payload, from: clientId });
+      sendTo(roomId, payload?.to, 'share:accept', { ...payload, from: clientId });
       return;
     }
 
     if (type === 'share:reject') {
-      sendTo(payload?.to, 'share:reject', { ...payload, from: clientId });
+      sendTo(roomId, payload?.to, 'share:reject', { ...payload, from: clientId });
       return;
     }
 
     if (type === 'rtc:offer' || type === 'rtc:answer' || type === 'rtc:ice') {
-      sendTo(payload?.to, type, { ...payload, from: clientId });
+      sendTo(roomId, payload?.to, type, { ...payload, from: clientId });
       return;
     }
 
     if (type === 'text:message') {
-      sendTo(payload?.to, 'text:message', { ...payload, from: clientId });
+      sendTo(roomId, payload?.to, 'text:message', { ...payload, from: clientId });
       return;
     }
 
     if (type === 'relay:file-meta' || type === 'relay:file-chunk' || type === 'relay:file-complete') {
-      sendTo(payload?.to, type, { ...payload, from: clientId });
+      sendTo(roomId, payload?.to, type, { ...payload, from: clientId });
     }
   });
 
   ws.on('close', () => {
-    if (clientId && clients.has(clientId)) {
-      clients.delete(clientId);
-      broadcast('presence:list', { devices: presenceList() });
+    const info = wsRoomMap.get(ws);
+    if (info?.clientId && rooms.has(info.roomId)) {
+      const room = rooms.get(info.roomId);
+      if (room.has(info.clientId)) {
+        room.delete(info.clientId);
+        broadcastToRoom(info.roomId, 'presence:list', { devices: presenceList(info.roomId) });
+        // Clean up empty rooms
+        if (room.size === 0) rooms.delete(info.roomId);
+      }
     }
   });
 });

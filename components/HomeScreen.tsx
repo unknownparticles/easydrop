@@ -5,6 +5,7 @@ import { DeviceOrbit } from './DeviceOrbit';
 import { PairRequestModal } from './PairRequestModal';
 import { TransferPanel } from './TransferPanel';
 import { ShareRequest } from '../services/rtc/rtcTypes';
+import { RoomModePanel, RoomMode } from './RoomModePanel';
 
 interface HomeScreenProps {
   isOnline: boolean;
@@ -25,6 +26,11 @@ interface HomeScreenProps {
   onRejectShare: (request: ShareRequest) => void;
   hint: string;
   installHint: string;
+  roomMode: RoomMode;
+  roomCode: string | null;
+  codeExpiresAt: number | null;
+  onRoomModeChange: (mode: RoomMode) => void;
+  onRoomCodeChange: (code: string | null) => void;
   transferCollapsed: boolean;
   onToggleTransfer: () => void;
   transferItems: TransferItem[];
@@ -59,6 +65,11 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   onRejectShare,
   hint,
   installHint,
+  roomMode,
+  roomCode,
+  codeExpiresAt,
+  onRoomModeChange,
+  onRoomCodeChange,
   transferCollapsed,
   onToggleTransfer,
   transferItems,
@@ -110,6 +121,14 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             </label>
           </div>
         </div>
+
+        <RoomModePanel
+          roomMode={roomMode}
+          roomCode={roomCode}
+          codeExpiresAt={codeExpiresAt}
+          onModeChange={onRoomModeChange}
+          onCodeChange={onRoomCodeChange}
+        />
 
         <PairRequestModal requests={shareRequests} onAccept={onAcceptShare} onReject={onRejectShare} />
 
