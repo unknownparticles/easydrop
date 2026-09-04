@@ -15,6 +15,7 @@ import { HomeScreen } from './components/HomeScreen';
 
 const STORAGE_DEVICE_ID = 'localdrop_device_id';
 const STORAGE_DEVICE_NAME = 'localdrop_device_name';
+const STORAGE_RELAY_FALLBACK = 'localdrop_relay_fallback_enabled';
 const DEFAULT_DEVICE_PREFIX = () => detectDeviceLabel();
 
 const App: React.FC = () => {
@@ -39,6 +40,14 @@ const App: React.FC = () => {
   const [hint, setHint] = useState('');
   const [activeTransferId, setActiveTransferId] = useState<string | null>(null);
   const [toast, setToast] = useState<{ id: number; text: string } | null>(null);
+  const [relayFallbackEnabled, setRelayFallbackEnabled] = useState(() => {
+    const stored = localStorage.getItem(STORAGE_RELAY_FALLBACK);
+    if (stored == null) {
+      localStorage.setItem(STORAGE_RELAY_FALLBACK, 'true');
+      return true;
+    }
+    return stored !== 'false';
+  });
 
   const [roomMode, setRoomMode] = useState<RoomMode>(() => {
     return parseCodeFromUrl() ? 'code' : 'lan';
@@ -52,7 +61,6 @@ const App: React.FC = () => {
     setRoomCode(code);
     if (code) {
       setCodeExpiresAt(Date.now() + 3600_000);
-      // Update URL without reload
       const url = new URL(window.location.href);
       url.searchParams.set('code', code);
       window.history.replaceState({}, '', url.toString());
@@ -117,7 +125,7 @@ const App: React.FC = () => {
         showToast(item.direction === 'sent' ? '发送成功' : '接收成功');
       }
     }
-  });
+  }, { enableRelayFallback: relayFallbackEnabled });
 
   const selfType = useMemo(() => {
     const ua = navigator.userAgent.toLowerCase();
@@ -147,7 +155,10 @@ const App: React.FC = () => {
   const queueFile = (file: File | null) => {
     if (!file || !selectedDevice || !isOnline) return setHint('请先选择设备');
     const kind = file.type.startsWith('image/') ? TransferType.IMAGE : TransferType.FILE;
-    webRtc.queueFile(selectedDevice, file, kind);
+    const queued = webRtc.queueFile(selectedDevice, file, kind);
+    if (!queued) {
+      setHint('未建立直连，且已关闭中继降级，当前无法发送');
+    }
   };
 
   const downloadItem = (item: { content: string; fileName?: string }) => {
@@ -173,6 +184,11 @@ const App: React.FC = () => {
         deviceSerial={deviceSerial}
         onDeviceNamePrefixChange={updateDeviceNamePrefix}
         onDeviceNameBlur={() => localStorage.setItem(STORAGE_DEVICE_NAME, deviceName)}
+        relayFallbackEnabled={relayFallbackEnabled}
+        onRelayFallbackToggle={(enabled) => {
+          setRelayFallbackEnabled(enabled);
+          localStorage.setItem(STORAGE_RELAY_FALLBACK, String(enabled));
+        }}
         devices={webRtc.devices as Device[]}
         pairingStatus={webRtc.pairingStatus}
         selfType={selfType}
