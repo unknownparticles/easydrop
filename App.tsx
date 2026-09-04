@@ -127,24 +127,6 @@ const App: React.FC = () => {
     }
   }, { enableRelayFallback: relayFallbackEnabled });
 
-        if (patch.status === 'sending' || patch.status === 'receiving' || patch.status === 'completed') {
-          focusTransferItem(id);
-        }
-        if (justCompletedDirection) {
-          showToast(justCompletedDirection === 'sent' ? '发送成功' : '接收成功');
-        }
-      },
-      onAddTransfer: (item) => {
-        transfers.setTransfers((prev) => [item, ...prev]);
-        focusTransferItem(item.id);
-        if (item.status === 'completed') {
-          showToast(item.direction === 'sent' ? '发送成功' : '接收成功');
-        }
-      }
-    },
-    { enableRelayFallback: relayFallbackEnabled }
-  );
-
   const selfType = useMemo(() => {
     const ua = navigator.userAgent.toLowerCase();
     if (ua.includes('ipad')) return 'tablet';
