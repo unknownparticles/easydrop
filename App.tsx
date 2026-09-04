@@ -6,6 +6,8 @@ import { useWebRTC } from './hooks/useWebRTC';
 import { useInstallPrompt } from './hooks/useInstallPrompt';
 import { composeDeviceName, deriveDeviceSerial, detectDeviceLabel, parseDeviceName } from './utils/device';
 import { generateId } from './utils/id';
+import { parseCodeFromUrl } from './utils/qrcode';
+import { RoomMode } from './components/RoomModePanel';
 import { TopNav } from './components/TopNav';
 import { ShareMenuModal } from './components/ShareMenuModal';
 import { TextShareModal } from './components/TextShareModal';
@@ -37,6 +39,37 @@ const App: React.FC = () => {
   const [hint, setHint] = useState('');
   const [activeTransferId, setActiveTransferId] = useState<string | null>(null);
   const [toast, setToast] = useState<{ id: number; text: string } | null>(null);
+
+  const [roomMode, setRoomMode] = useState<RoomMode>(() => {
+    return parseCodeFromUrl() ? 'code' : 'lan';
+  });
+  const [roomCode, setRoomCode] = useState<string | null>(() => parseCodeFromUrl());
+  const [codeExpiresAt, setCodeExpiresAt] = useState<number | null>(() => {
+    return parseCodeFromUrl() ? Date.now() + 3600_000 : null;
+  });
+
+  const handleRoomCodeChange = (code: string | null) => {
+    setRoomCode(code);
+    if (code) {
+      setCodeExpiresAt(Date.now() + 3600_000);
+      // Update URL without reload
+      const url = new URL(window.location.href);
+      url.searchParams.set('code', code);
+      window.history.replaceState({}, '', url.toString());
+    } else {
+      setCodeExpiresAt(null);
+      const url = new URL(window.location.href);
+      url.searchParams.delete('code');
+      window.history.replaceState({}, '', url.toString());
+    }
+  };
+
+  const handleRoomModeChange = (mode: RoomMode) => {
+    setRoomMode(mode);
+    if (mode === 'lan') {
+      handleRoomCodeChange(null);
+    }
+  };
   const { isOnline, networkLabel } = useNetworkStatus();
   const install = useInstallPrompt();
   const galleryInputRef = useRef<HTMLInputElement>(null);
@@ -56,7 +89,7 @@ const App: React.FC = () => {
     setActiveTransferId(id);
   };
 
-  const webRtc = useWebRTC(deviceName, {
+  const webRtc = useWebRTC(deviceName, roomCode, {
     onUpdateTransfer: (id, patch) => {
       let justCompletedDirection: 'sent' | 'received' | null = null;
       transfers.setTransfers((prev) =>
@@ -131,7 +164,7 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-white text-slate-900">
-      <TopNav signalStatus={webRtc.signalStatus} isOnline={isOnline} networkLabel={networkLabel} canInstall={install.canInstall} onInstall={install.install} />
+      <TopNav signalStatus={webRtc.signalStatus} isOnline={isOnline} networkLabel={networkLabel} canInstall={install.canInstall} onInstall={install.install} roomMode={roomMode} roomCode={roomCode} />
 
       <HomeScreen
         isOnline={isOnline}
@@ -150,6 +183,11 @@ const App: React.FC = () => {
         onRejectShare={webRtc.rejectShareRequest}
         hint={hint}
         installHint={install.installHint}
+        roomMode={roomMode}
+        roomCode={roomCode}
+        codeExpiresAt={codeExpiresAt}
+        onRoomModeChange={handleRoomModeChange}
+        onRoomCodeChange={handleRoomCodeChange}
         transferCollapsed={transferCollapsed}
         onToggleTransfer={() => setTransferCollapsed((prev) => !prev)}
         transferItems={transfers.filteredTransfers}

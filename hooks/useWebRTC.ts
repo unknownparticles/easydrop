@@ -10,7 +10,7 @@ interface WebRTCHandlers {
   onAddTransfer: (item: TransferItem) => void;
 }
 
-export const useWebRTC = (deviceName: string, handlers: WebRTCHandlers) => {
+export const useWebRTC = (deviceName: string, roomCode: string | null, handlers: WebRTCHandlers) => {
   const peerRef = useRef<ReturnType<typeof usePeerConnections> | null>(null);
   const relayReceiveRef = useRef(new Map<string, {
     from: string;
@@ -84,7 +84,7 @@ export const useWebRTC = (deviceName: string, handlers: WebRTCHandlers) => {
     signaling.sendSignal('relay:file-complete', { to: device.id, fileId });
   };
 
-  const signaling = useSignaling(deviceName, {
+  const signaling = useSignaling(deviceName, roomCode, {
     onOffer: (from, sdp) => peerRef.current?.createConnection(from, false, sdp),
     onAnswer: (from, sdp) => peerRef.current?.handleAnswer(from, sdp),
     onIce: (from, candidate) => peerRef.current?.handleIce(from, candidate),

@@ -33,7 +33,15 @@ export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
     if (url.pathname === '/ws' && request.headers.get('upgrade') === 'websocket') {
-      const id = env.SIGNAL_ROOM.idFromName('global');
+      const code = url.searchParams.get('code');
+      let roomName: string;
+      if (code && /^\d{4}$/.test(code)) {
+        roomName = `code:${code}`;
+      } else {
+        const ip = request.headers.get('cf-connecting-ip') || 'unknown';
+        roomName = `ip:${ip}`;
+      }
+      const id = env.SIGNAL_ROOM.idFromName(roomName);
       return env.SIGNAL_ROOM.get(id).fetch(request);
     }
     return new Response('EasyDrop signaling worker is running.\nUse WebSocket path: /ws', { status: 200 });
@@ -58,12 +66,33 @@ export class SignalRoom {
     if (request.headers.get('upgrade') !== 'websocket') {
       return new Response('Expected WebSocket upgrade', { status: 426 });
     }
+
+    // Set alarm for code-based rooms (1 hour expiry)
+    const url = new URL(request.url);
+    const code = url.searchParams.get('code');
+    if (code && /^\d{4}$/.test(code)) {
+      const existingAlarm = await this.state.storage.getAlarm();
+      if (!existingAlarm) {
+        await this.state.storage.setAlarm(Date.now() + 3_600_000);
+      }
+    }
+
     const pair = new WebSocketPair();
     const client = pair[0];
     const server = pair[1];
     this.state.acceptWebSocket(server);
     server.serializeAttachment({ deviceId: null } satisfies Attachment);
     return new Response(null, { status: 101, webSocket: client });
+  }
+
+  async alarm(): Promise<void> {
+    // Code room expired — close all connections
+    for (const session of this.sessions.values()) {
+      try {
+        session.ws.close(1000, 'Code expired');
+      } catch { /* ignore */ }
+    }
+    this.sessions.clear();
   }
 
   webSocketMessage(ws: WebSocket, message: string | ArrayBuffer): void {

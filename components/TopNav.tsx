@@ -1,6 +1,7 @@
 import React from 'react';
 import { Share2 } from 'lucide-react';
 import { SignalStatus } from '../services/rtc/rtcTypes';
+import { RoomMode } from './RoomModePanel';
 
 interface TopNavProps {
   signalStatus: SignalStatus;
@@ -8,9 +9,11 @@ interface TopNavProps {
   networkLabel: string;
   canInstall: boolean;
   onInstall: () => void;
+  roomMode: RoomMode;
+  roomCode: string | null;
 }
 
-export const TopNav: React.FC<TopNavProps> = ({ signalStatus, isOnline, networkLabel, canInstall, onInstall }) => {
+export const TopNav: React.FC<TopNavProps> = ({ signalStatus, isOnline, networkLabel, canInstall, onInstall, roomMode, roomCode }) => {
   return (
     <nav className="sticky top-0 z-50 bg-white/70 backdrop-blur-xl px-6 pb-5 pt-[calc(1.25rem+env(safe-area-inset-top))]">
       <div className="max-w-6xl mx-auto flex items-center justify-between">
@@ -28,6 +31,13 @@ export const TopNav: React.FC<TopNavProps> = ({ signalStatus, isOnline, networkL
               添加到桌面
             </button>
           )}
+          <div className={`hidden md:flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold ${
+            roomMode === 'code'
+              ? 'bg-purple-50 text-purple-700'
+              : 'bg-slate-50 text-slate-500'
+          }`}>
+            {roomMode === 'code' ? `🔗 ${roomCode || '...'}` : '🌐 局域网'}
+          </div>
           <div className={`hidden md:flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold ${
             signalStatus === 'online'
               ? 'bg-green-50 text-green-700'
